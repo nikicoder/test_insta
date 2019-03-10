@@ -1,0 +1,19 @@
+{
+    "name": "smarteg/test_insta",
+    "authors": [
+        {
+            "name": "Nikita A. Bykov"
+        }
+    ],
+    "require": {
+        "illuminate/database": "5.1.*",
+        "davedevelopment/phpmig": "^1.5",
+        "pimple/pimple": "^3.2",
+        "josegonzalez/dotenv": "^3.2"
+    },
+    "autoload": {
+        "psr-4": {
+          "instms\\":"src/"
+        }
+    }
+}
