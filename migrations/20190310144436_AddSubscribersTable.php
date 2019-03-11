@@ -25,6 +25,7 @@ class AddSubscribersTable extends Migration
             $table->timestamp('updated')->nullable();
             $table->boolean('state');
             $table->foreign('user_id')->references('id')->on('instagram_users');
+            $table->unique(['user_id', 'external_id']);
         });
     }
 

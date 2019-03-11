@@ -21,6 +21,7 @@ class AddPostsLikesTable extends Migration
             $table->unsignedInteger('post_id')->index();
             $table->unsignedBigInteger('external_user_id');
             $table->foreign('post_id')->references('id')->on('user_posts');
+            $table->unique(['post_id', 'external_user_id']);
         });
     }
 

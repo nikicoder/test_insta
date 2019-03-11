@@ -4,6 +4,7 @@ namespace instms\repositories\users;
 
 use \instms\repositories\BaseInstagramDataRepository;
 use \instms\entities\UserEntity;
+use \instms\entities\SubscriberEntity;
 
 class InstaExternalUsersRepository extends BaseInstagramDataRepository {
 
@@ -20,18 +21,21 @@ class InstaExternalUsersRepository extends BaseInstagramDataRepository {
         return (new UserEntity)->parseRawDataFromInstagram($rawData);
     }
 
-    // функция генерирует псевдоуникальный ID
-    // для тестовых нужд
-    // берем md5-hash от никнейма, дробим на 4 части
-    // считаем от них число и суммируем все 4 части
-    private function createPseudoUniqId(string $nickname)
+    public function getSubscribersByNickname(string $nickname): array
     {
-        $hash = md5($nickname);
-        $p1 = intval(substr($hash, 0, 8), 16);
-        $p2 = intval(substr($hash, 8, 8), 16);
-        $p3 = intval(substr($hash, 16, 8), 16);
-        $p4 = intval(substr($hash, 24, 8), 16);
+        $result = [];
 
-        return ($p1 + $p2 + $p3 + $p4);
+        foreach($this->users as $u) {
+            // эмуляция подписался-отписался
+            if(rand(0,1)) {
+                $result[] = (new SubscriberEntity)->parseRawDataFromInstagram([
+                    'id'    => $this->createPseudoUniqId($u),
+                    'name'  => $u,
+                    'info'  => ''
+                ]);
+            }
+        }
+
+        return $result;
     }
 }

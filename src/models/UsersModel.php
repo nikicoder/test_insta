@@ -5,6 +5,7 @@ namespace instms\models;
 use \instms\entities\UserEntity;
 use \instms\repositories\users\InstaLocalUsersRepository;
 use \instms\repositories\users\InstaExternalUsersRepository;
+use \instms\repositories\users\InstaLocalSubscribersRepository;
 
 class UsersModel {
 
@@ -30,7 +31,7 @@ class UsersModel {
     /**
      * getInstagramUserByNickname получение данных из внешнего источника
      *
-     * @param  mixed $nickname
+     * @param  string $nickname
      *
      * @return mixed
      */
@@ -40,6 +41,18 @@ class UsersModel {
         // не входит в регламент текущего задания
         // по этому инстаграм апи какбы всегда что-то возвращает
         return (new InstaExternalUsersRepository)->getUserByNickname($nickname);
+    }
+
+    /**
+     * getInstamSubscribers получает список инстаграм подписчиков из API
+     *
+     * @param  string $nickname
+     *
+     * @return array
+     */
+    public function getInstamSubscribers(string $nickname): array
+    {
+        return (new InstaExternalUsersRepository)->getSubscribersByNickname($nickname);
     }
 
     /**
@@ -54,7 +67,14 @@ class UsersModel {
         return (new InstaLocalUsersRepository)->addUser($user);
     }
 
-    public function initUser(string $user)
+    /**
+     * initUser данный метод инициализирует пользователя
+     *
+     * @param  mixed $user
+     *
+     * @return UserEntity
+     */
+    public function initUser(string $user): UserEntity
     {
         // тип у getInstagramUserByNickname mixed
         // по этому проверка на пустое значение нужна by design
@@ -68,6 +88,79 @@ class UsersModel {
             throw new \Exception('Error save user local');
         }
 
-        return $this->getLocalUserByNickName($user);
+        $newUser = $this->getLocalUserByNickName($user);
+        $subscribers = $this->getInstamSubscribers($newUser->userName);
+
+        if(!empty($subscribers)) {
+            (new InstaLocalSubscribersRepository)
+                ->batchInsertSubscribers($newUser->localId, $subscribers);
+        }
+
+        return $newUser;
+    }
+
+    public function actualizeSubscribers(UserEntity $user)
+    {
+        $lsrp = new InstaLocalSubscribersRepository;
+        
+        // уже имеющиеся данные о подписчиках
+        $currentSubscribersLocal = $lsrp->getAllSubscribers($user->localId);
+        
+        // Массив внешних ID активных аккаунтов
+        $localActiveIDS = [];
+        // Массив внешних ID неактивных аккаунтов
+        $localInactive = [];
+
+        foreach($currentSubscribersLocal as $acc) {
+            if($acc->isActive()) {
+                $localActiveIDS[] = $acc->externalId;
+            } else {
+                $localInactive[] = $acc->externalId;
+            }
+        }
+
+        // актуальные данные из внешнего сервиса
+        $externalSubsData = $this->getInstamSubscribers($user->userName);
+        
+        // добавить
+        $add = [];
+        // деактивировать
+        $setInactive = [];
+        // активировать по-новой
+        $setActive = [];
+        // обработанные
+        $processed = [];
+
+        foreach($externalSubsData as $eacc) {
+            if(in_array($eacc->externalId, $localActiveIDS)) {
+                // не делаем ничего
+            } elseif(in_array($eacc->externalId, $localInactive)) {
+                $setActive[] = $eacc;
+            } else {
+                $add[] = $eacc;
+            }
+
+            $processed[] = $eacc->externalId;
+        }
+
+        // те, кого нужно деактивировать
+        foreach($localActiveIDS as $id) {
+            if(!in_array($id, $processed)) {
+                $setInactive[] = $id;
+            }
+        }
+
+        // добавляем
+        $lsrp->batchInsertSubscribers($user->localId, $add);
+
+        // активируем обратно
+        foreach($setActive as $u) {
+            $lsrp->setActiveSubscriber($user->localId, $u->externalId);
+        }
+
+        // деактивируем
+        foreach($setInactive as $id) {
+            $lsrp->setInactiveSubscriber($user->localId, $id);
+        }
     }
 }
